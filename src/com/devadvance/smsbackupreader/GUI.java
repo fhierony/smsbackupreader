@@ -1,16 +1,23 @@
 package com.devadvance.smsbackupreader;
 
+import java.awt.BorderLayout;
+import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.ArrayList;
 
+import javax.imageio.ImageIO;
 import javax.swing.AbstractListModel;
 import javax.swing.GroupLayout;
 import javax.swing.GroupLayout.Alignment;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -23,11 +30,20 @@ import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.LayoutStyle.ComponentPlacement;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.border.EtchedBorder;
+import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.HyperlinkListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.text.Element;
+import javax.swing.text.html.HTMLDocument;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
+
+import org.apache.commons.codec.binary.Base64;
 
 public class GUI {
 
@@ -37,11 +53,17 @@ public class GUI {
 	private JTextField fileLocationField;
 	private JTextField numberSMSField;
 	private JTextField exportFileField;
-	private JTextArea messageTextBox;
+	//private JTextArea messageTextBox;
+	private JTextPane messageTextBox;
 	private JList contactListBox;
 	private JFileChooser fileChooser;
 	private JFileChooser saveChooser;
 
+	private StyleSheet styleSheet = new StyleSheet();
+	private HTMLEditorKit htmlEditorKit = new HTMLEditorKit();
+	private HTMLDocument htmlDocument;
+	private Element bodyElement;
+	
 	private BackupReader reader;
 
 	/**
@@ -248,14 +270,47 @@ public class GUI {
 																.addComponent(exportSelectedButton))
 																.addContainerGap())
 				);
-
-		messageTextBox = new JTextArea();
+		
+		setUpCss();
+		
+		//messageTextBox = new JTextArea();
+		messageTextBox = new JTextPane();
 		scrollPane.setViewportView(messageTextBox);
 		messageTextBox.setText("This is where the messages will show up...");
-		messageTextBox.setLineWrap(true);
+		//messageTextBox.setLineWrap(true);
 		messageTextBox.setFont(new Font("Arial Unicode MS", Font.PLAIN, 12));
 		messageTextBox.setEditable(false);
+		messageTextBox.setContentType("text/html");
+		messageTextBox.setEditorKit(htmlEditorKit);
+		messageTextBox.setDocument(htmlDocument);
 
+		HyperlinkListener listener = new HyperlinkListener() {
+			@Override
+			public void hyperlinkUpdate(HyperlinkEvent e) {
+				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+					String base64 = e.getDescription();
+					
+					try{					
+						byte[] btDataFile = Base64.decodeBase64(base64);
+						BufferedImage image = ImageIO.read(new ByteArrayInputStream(btDataFile));
+						BufferedImage resizedImage = new BufferedImage(image.getWidth() / 5, image.getHeight() / 5, image.getType());
+						Graphics2D g = resizedImage.createGraphics();
+						
+						g.drawImage(image, 0, 0, image.getWidth() / 5, image.getHeight() / 5, null);
+					    g.dispose();
+					    
+						JOptionPane.showMessageDialog(null, "", "Image", 
+						        JOptionPane.INFORMATION_MESSAGE, 
+						        new ImageIcon(resizedImage));
+						
+					}catch(Exception ev){
+						System.out.println(ev.toString());
+					}
+	            }
+			}
+		};
+		messageTextBox.addHyperlinkListener(listener);
+		
 		contactListBox = new JList();
 		contactListBox.setFont(new Font("Arial Unicode MS", Font.PLAIN, 12));
 		contactListBox.addListSelectionListener(new ListSelectionListener() {
@@ -334,14 +389,36 @@ public class GUI {
 
 	private void contactListValueChanged() {
 		Contact selectedContact = (Contact)contactListBox.getSelectedValue();
+		
+		Element el = htmlDocument.getElement("message-wrapper");
+		
+		if(el != null)
+			htmlDocument.removeElement(el);
+		
 		// If this method has been called because a different file is being loaded while one is already open, there might be a null selection
 		if (selectedContact != null) {
 			ArrayList<Message> selectedMessages = selectedContact.getMessages();
-			messageTextBox.setText("");
-			for (int i = 0;i < selectedMessages.size();i++) {
-				messageTextBox.append(selectedMessages.get(i).toString() + "\n");
-			}
+			
+		    try {
+		        Element htmlElement = htmlDocument.getRootElements()[0];
+		        bodyElement = htmlElement.getElement(0);
+
+		        Container contentPane = messageTextBox.getParent();
+		        contentPane.add(messageTextBox, BorderLayout.CENTER);
+		        
+		        htmlDocument.insertAfterStart(bodyElement, "<div id=\"message-wrapper\" class=\"messages-wrapper\"></div>");
+		        Element wrapperElement = htmlDocument.getElement("message-wrapper");
+		        
+				for (int i = 0;i < selectedMessages.size();i++) {
+					//messageTextBox.append(selectedMessages.get(i).toString() + "\n");
+					htmlDocument.insertBeforeEnd(wrapperElement, selectedMessages.get(i).toHtml() + "<br/>");
+				}
+		      } catch (Exception e) {
+		        e.printStackTrace();
+		      }
 		}
+		
+		reapplyStyles();
 	}
 
 	private void helpAction() {
@@ -408,5 +485,44 @@ public class GUI {
 		else {
 			JOptionPane.showMessageDialog(frmSmsBackupReader, "Load messages first!");
 		}
+	}
+	
+	private void setUpCss(){
+		styleSheet.addRule(".messages-wrapper {padding-top: 10px; " +
+											  "border: 1px solid #ddd; " +
+											  "border-top: 0 none;} ");
+		
+		styleSheet.addRule(".message-to {margin: 0 15px 10px 80px; " +
+									    "padding: 15px 20px; " +
+									    "background-color: #2095FE; " +
+										"color: #FFFFFF; " +
+									    "position: relative;} ");
+		
+		styleSheet.addRule(".message-from {margin: 0 80px 10px 15px; " +
+			    						  "padding: 15px 20px; " +
+			    						  "background-color: #E5E4E9; " +
+										  "color: #363636; " +
+			    						  "position: relative;} ");
+		
+		styleSheet.addRule(".date-to {text-align: right; font-size: 6px;}");
+		
+		styleSheet.addRule(".date-from {text-align: left; font-size: 6px;}");
+		
+		styleSheet.addRule("a {text-decoration: underline;}");
+		htmlEditorKit.setStyleSheet(styleSheet);
+		htmlDocument = (HTMLDocument) htmlEditorKit.createDefaultDocument();
+	}
+	
+	public void reapplyStyles() {
+	    Element sectionElem = bodyElement
+	        .getElement(bodyElement.getElementCount() - 1);
+	    int paraCount = sectionElem.getElementCount();
+	    for (int i = 0; i < paraCount; i++) {
+	      Element e = sectionElem.getElement(i);
+	      int rangeStart = e.getStartOffset();
+	      int rangeEnd = e.getEndOffset();
+	      htmlDocument.setParagraphAttributes(rangeStart, rangeEnd - rangeStart,
+	          e.getAttributes(), true);
+	    }
 	}
 }

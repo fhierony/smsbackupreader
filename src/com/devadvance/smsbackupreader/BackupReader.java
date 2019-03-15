@@ -12,6 +12,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -64,6 +65,12 @@ public class BackupReader {
 	 * @return A Message object containing the date, address, and body from the Element.
 	 */
 	private Message elementToMessage(Element element){
+		String messageType = element.getTagName();
+		Message msg = null;
+		String body = "";
+		int type;
+		List<Attachment> attachments = new ArrayList<Attachment>();
+		
 		String addressString = element.getAttribute("address");
 		addressString = removeExtraDigits(addressString);
 
@@ -75,11 +82,44 @@ public class BackupReader {
 		BigInteger address = new BigInteger(addressString);
 
 		BigInteger date = new BigInteger(element.getAttribute("date"));
-		String body = element.getAttribute("body");
-		int type = Integer.parseInt(element.getAttribute("type"));
+		
+		if(messageType.equals("sms")){
+			body = element.getAttribute("body");
+			type = Integer.parseInt(element.getAttribute("type"));
+			
+			msg = new Message(address,date,body,type, timeOffset);
+		}else{
+			type = Integer.parseInt(element.getAttribute("msg_box"));
+			
+			NodeList parts = element.getElementsByTagName("part");
+			
+			for(int i = 0; i < parts.getLength(); i++){
+				Element pt = (Element) parts.item(i);
+				
+				if(pt.getAttribute("ct").equals("text/plain")){
+					body = pt.getAttribute("text");
+				}else if(!pt.getAttribute("ct").equals("application/smil")){
+					String attType = pt.getAttribute("ct");
+					String attName = pt.getAttribute("name");
+					String attData = pt.getAttribute("data");
+					
+					Attachment att = new Attachment(attType, attData, attName);
 
-		Message msg = new Message(address,date,body,type, timeOffset);
+					attachments.add(att);
+				}
+			}
+			
+			if(attachments.size() == 0){
+				msg = new Message(address,date,body,type,timeOffset);
+			}else{
+				msg = new Message(address,date,body,type,timeOffset,attachments);
+			}
+		}
+		
+		
 
+		
+		
 		return msg;
 	}
 
@@ -93,6 +133,12 @@ public class BackupReader {
 		if (inputAddress.equalsIgnoreCase("null"))
 			return "0";
 
+		//If the address is from a group message check for ~
+		//For now just take the first address
+		if(inputAddress.indexOf("~") > 0){
+			inputAddress = inputAddress.substring(0, inputAddress.indexOf("~"));
+		}
+		
 		inputAddress = inputAddress.replaceAll("\\D", "");
 
 		// For short codes/other similar stuff
@@ -124,6 +170,8 @@ public class BackupReader {
 
 		countryCode = _countryCode;
 		timeOffset = _timeOffset;
+		numberOfSMS = 0;
+		
 		try {
 			InputStream is = new FileInputStream(openFile);  
 			Reader reader = new InputStreamReader(is, "UTF-8");  
@@ -138,43 +186,48 @@ public class BackupReader {
 
 			// Get a nodelist of elements in the XML file
 			NodeList nl = docEle.getElementsByTagName("sms");
-
-			if(nl != null && nl.getLength() > 0) {
-				// Set the number of SMS
-				numberOfSMS = nl.getLength();
-
-				Element element = null;
-				Message msg = null;
-				// For each message in the nodelist
-				for (int i = 0; i < nl.getLength(); i++) {
-					element = (Element) nl.item(i);
-					msg = elementToMessage(element);
-
-					// If the contactMap already contains this contact, just add the message
-					if (contactMap.containsKey(msg.getMessageAddress())) {
-						contactMap.get(msg.getMessageAddress()).addMessage(msg);
+			NodeList nl2 = docEle.getElementsByTagName("mms");
+			
+			NodeList[] nodes = {nl, nl2};
+			
+			for(NodeList n : nodes){
+				if(n != null && n.getLength() > 0) {
+					// Set the number of SMS
+					numberOfSMS += n.getLength();
+	
+					Element element = null;
+					Message msg = null;
+					// For each message in the nodelist
+					for (int i = 0; i < n.getLength(); i++) {
+						element = (Element) n.item(i);
+						msg = elementToMessage(element);
+	
+						// If the contactMap already contains this contact, just add the message
+						if (contactMap.containsKey(msg.getMessageAddress())) {
+							contactMap.get(msg.getMessageAddress()).addMessage(msg);
+						}
+						else { // Need to add the contact first
+							Contact tempContact = new Contact(element.getAttribute("contact_name"), msg.getMessageAddress());
+							tempContact.addMessage(msg);
+							contactMap.put(msg.getMessageAddress(), tempContact);
+						}
 					}
-					else { // Need to add the contact first
-						Contact tempContact = new Contact(element.getAttribute("contact_name"), msg.getMessageAddress());
-						tempContact.addMessage(msg);
-						contactMap.put(msg.getMessageAddress(), tempContact);
+	
+					// Convert the contactMap to an array
+					contactArray = contactMap.values().toArray(new Contact[contactMap.size()]);
+	
+					// Sort each contacts' messages
+					for (int c = 0; c < contactArray.length; c++) {
+						Collections.sort(contactArray[c].messageList);  
 					}
+	
+					// Set boolean to true
+					loadSuccess = true;
+					errored = 0;
 				}
-
-				// Convert the contactMap to an array
-				contactArray = contactMap.values().toArray(new Contact[contactMap.size()]);
-
-				// Sort each contacts' messages
-				for (int c = 0; c < contactArray.length; c++) {
-					Collections.sort(contactArray[c].messageList);  
+				else { // No error but the file had no SMS
+					loadSuccess = false;
 				}
-
-				// Set boolean to true
-				loadSuccess = true;
-				errored = 0;
-			}
-			else { // No error but the file had no SMS
-				loadSuccess = false;
 			}
 			
 		} catch (SAXException e) {
