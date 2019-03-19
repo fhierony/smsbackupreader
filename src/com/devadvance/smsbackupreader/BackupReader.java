@@ -100,7 +100,7 @@ public class BackupReader {
 					body = pt.getAttribute("text");
 				}else if(!pt.getAttribute("ct").equals("application/smil")){
 					String attType = pt.getAttribute("ct");
-					String attName = pt.getAttribute("name");
+					String attName = pt.getAttribute("cl");
 					String attData = pt.getAttribute("data");
 					
 					Attachment att = new Attachment(attType, attData, attName);
@@ -115,11 +115,7 @@ public class BackupReader {
 				msg = new Message(address,date,body,type,timeOffset,attachments);
 			}
 		}
-		
-		
 
-		
-		
 		return msg;
 	}
 

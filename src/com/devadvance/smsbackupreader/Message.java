@@ -117,7 +117,7 @@ public class Message implements Comparable<Message> {
 		
 		if(messageAttachments != null && messageAttachments.size() > 0){
 			for(int i = 0; i < messageAttachments.size(); i++){
-				tempString += messageAttachments.get(i).toHtml();
+				tempString += "<br/>" + messageAttachments.get(i).toHtml();
 			}
 		}
 		
@@ -125,6 +125,17 @@ public class Message implements Comparable<Message> {
 		tempString += "</div>";
 		
 		return tempString;
+	}
+	
+	public int getAttachmentCount(){
+		if(messageAttachments == null)
+			return 0;
+		else
+			return messageAttachments.size();
+	}
+	
+	public List<Attachment> getAttachments(){
+		return messageAttachments;
 	}
 	
 	@Override

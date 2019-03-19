@@ -35,10 +35,15 @@ public class Attachment {
 		base64Data = input;
 	}
 
+	public String getBaseType(){
+		return mimeType.substring(0, mimeType.indexOf('/'));
+	}
+	
 	public String toHtml(){
 		String tempString;
 		
-		tempString = "<a href=\"" + base64Data + "\">" + fileName + "</a>";
+		//tempString = "<a href=\"" + base64Data + "\">" + fileName + "</a>";
+		tempString = "<a href=\"" + fileName + "\">" + fileName + "</a>";
 		
 		return tempString;
 	}

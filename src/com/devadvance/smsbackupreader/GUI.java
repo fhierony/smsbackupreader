@@ -4,20 +4,16 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.Font;
-import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.math.BigInteger;
 import java.util.ArrayList;
 
-import javax.imageio.ImageIO;
 import javax.swing.AbstractListModel;
 import javax.swing.GroupLayout;
 import javax.swing.GroupLayout.Alignment;
-import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -28,7 +24,6 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.LayoutStyle.ComponentPlacement;
@@ -55,7 +50,7 @@ public class GUI {
 	private JTextField exportFileField;
 	//private JTextArea messageTextBox;
 	private JTextPane messageTextBox;
-	private JList contactListBox;
+	private JList<Contact> contactListBox;
 	private JFileChooser fileChooser;
 	private JFileChooser saveChooser;
 
@@ -288,21 +283,42 @@ public class GUI {
 			@Override
 			public void hyperlinkUpdate(HyperlinkEvent e) {
 				if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-					String base64 = e.getDescription();
-					
-					try{					
-						byte[] btDataFile = Base64.decodeBase64(base64);
-						BufferedImage image = ImageIO.read(new ByteArrayInputStream(btDataFile));
-						BufferedImage resizedImage = new BufferedImage(image.getWidth() / 5, image.getHeight() / 5, image.getType());
-						Graphics2D g = resizedImage.createGraphics();
-						
-						g.drawImage(image, 0, 0, image.getWidth() / 5, image.getHeight() / 5, null);
-					    g.dispose();
-					    
-						JOptionPane.showMessageDialog(null, "", "Image", 
-						        JOptionPane.INFORMATION_MESSAGE, 
-						        new ImageIcon(resizedImage));
-						
+					String filename = e.getDescription();
+
+					try{
+						Contact selectedContact = (Contact)contactListBox.getSelectedValue();
+						boolean found = false;
+						//loading all base64 image data is slow, search for it by filename
+						for(Message m : selectedContact.messageList){
+							if(m.getAttachmentCount() > 0){
+								for(Attachment a : m.getAttachments()){
+									if(a.getFileName().equals(filename)){
+										if(a.getBaseType().equals("image")){
+											ImageViewer iv = new ImageViewer(a);
+											iv.resizeFrame();
+											iv.setLocation(100,100);
+											iv.setVisible(true);
+										}else{
+											int result = JOptionPane.showConfirmDialog(frmSmsBackupReader, "Current support for images only, choose ok to save file");
+											
+											if(result == 0){
+												byte[] btDataFile = Base64.decodeBase64(a.getBase64Data());
+												
+												try (FileOutputStream stream = new FileOutputStream(a.getFileName())) {
+												    stream.write(btDataFile);
+												}
+											}
+										}
+										
+										found = true;
+										break;
+									}
+								}
+							}
+							
+							if(found)
+								break;
+						}
 					}catch(Exception ev){
 						System.out.println(ev.toString());
 					}
@@ -311,7 +327,7 @@ public class GUI {
 		};
 		messageTextBox.addHyperlinkListener(listener);
 		
-		contactListBox = new JList();
+		contactListBox = new JList<Contact>();
 		contactListBox.setFont(new Font("Arial Unicode MS", Font.PLAIN, 12));
 		contactListBox.addListSelectionListener(new ListSelectionListener() {
 			@Override
