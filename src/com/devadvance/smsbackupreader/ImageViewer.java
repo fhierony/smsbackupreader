@@ -1,11 +1,15 @@
 package com.devadvance.smsbackupreader;
 
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
+import java.awt.event.MouseWheelEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -17,6 +21,10 @@ import javax.swing.JFrame;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JViewport;
+import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingUtilities;
 
 import org.apache.commons.codec.binary.Base64;
 
@@ -27,6 +35,10 @@ public class ImageViewer extends JFrame{
 	private Attachment attachment;
 	private int frW;
 	private int frH;
+	private int winW;
+	private int winH;
+	private ImagePanel ip;
+	private JScrollPane scrollPane;
 	
 	public ImageViewer(Attachment a) throws IOException {
 		attachment = a;
@@ -42,19 +54,21 @@ public class ImageViewer extends JFrame{
 	    frW = (int) ((int) img.getWidth() * scl);
 	    frH = (int) ((int) img.getHeight() * scl);
 	    
-	    MouseListener m = new MouseListener(){
-			@Override
+	    winW = frW;
+	    winH = frH;
+	    
+	    MouseAdapter ma = new MouseAdapter(){
+	    	private Point origin;
+	    	
+	    	@Override
 			public void mouseClicked(MouseEvent e) {
-				// TODO Auto-generated method stub
 				if(e.getButton() == MouseEvent.BUTTON3){
 					JPopupMenu menu = new JPopupMenu();
 					JMenuItem mi = new JMenuItem("Save Image");
 					ActionListener al = new ActionListener(){
 						@Override
 						public void actionPerformed(ActionEvent arg0) {
-							// TODO Auto-generated method stub
 							saveImage();
-							
 						}
 					};
 					mi.addActionListener(al);
@@ -62,22 +76,67 @@ public class ImageViewer extends JFrame{
 			        menu.show(e.getComponent(), e.getX(), e.getY());
 				}
 			}
+	
+	    	public void mousePressed(MouseEvent arg0) {
+				if(arg0.getButton() == MouseEvent.BUTTON1 || arg0.getButton() == MouseEvent.BUTTON2){
+					origin = arg0.getPoint();
+				}
+			}
+	    	
+	    	@Override
+            public void mouseDragged(MouseEvent e) {
+                if (origin != null) {
+                    JViewport viewPort = (JViewport) SwingUtilities.getAncestorOfClass(JViewport.class, ip);
+                    if (viewPort != null) {
+                        int deltaX = origin.x - e.getX();
+                        int deltaY = origin.y - e.getY();
 
-			public void mouseEntered(MouseEvent arg0) {}
+                        Rectangle view = viewPort.getViewRect();
+                        view.x += deltaX;
+                        view.y += deltaY;
 
-			public void mouseExited(MouseEvent arg0) {}
-			
-			public void mousePressed(MouseEvent arg0) {}
-
-			public void mouseReleased(MouseEvent arg0) {}
+                        ip.scrollRectToVisible(view);
+                    }
+                }
+            }
+	    	
+	    	@Override
+			public void mouseWheelMoved(MouseWheelEvent e) {
+				if(e.getWheelRotation() == 1){
+					scl /= 1.1;
+				}else{
+					scl *= 1.1;
+				}
+				
+				frW = (int) ((int) img.getWidth() * scl);
+			    frH = (int) ((int) img.getHeight() * scl);
+			    
+			    if(frW < winW){
+			    	frW = winW;
+			    	setScale();
+			    }
+			    
+			    if(frH < winH){
+			    	frH = winH;
+			    	setScale();
+			    }
+			    
+			    //ip.setSize(frW, frH);
+			    ip.setPreferredSize(new Dimension(frW, frH));
+			    ip.repaint();
+			}
 	    };
 	    
-	    this.addMouseListener(m);
+	    ip = new ImagePanel();
 	    
+	    ip.addMouseWheelListener(ma);
+	    ip.addMouseListener(ma);
+	    ip.addMouseMotionListener(ma);
 	    
-	    ImagePanel ip = new ImagePanel();	    
+	    scrollPane = new JScrollPane(ip, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 	    
-	    add(ip);
+	    getContentPane().add(scrollPane);
+	    
         pack();
         setLocationRelativeTo(null);
         setVisible(true);
@@ -88,7 +147,8 @@ public class ImageViewer extends JFrame{
 	}
 	
 	public void resizeFrame(){
-		setSize(frW, frH);
+		setSize(winW, winH);
+		ip.setPreferredSize(new Dimension(winW, winH));
 	}
 
 	private void setScale(){

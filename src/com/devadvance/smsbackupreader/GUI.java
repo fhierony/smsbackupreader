@@ -40,8 +40,10 @@ import javax.swing.text.html.StyleSheet;
 
 import org.apache.commons.codec.binary.Base64;
 
-public class GUI {
+import  java.util.prefs.*;
 
+public class GUI {
+	private Preferences p;
 	private JFrame frmSmsBackupReader;
 	private JTextField countryCodeTextBox;
 	private JTextField offsetField;
@@ -84,6 +86,13 @@ public class GUI {
 	public GUI() {
 		initialize();
 		reader = new BackupReader();
+		p = Preferences.userNodeForPackage(BackupReader.class);
+		
+		if(p.getBoolean(PrefVals.LOAD_PREV_XML, false) && !p.get(PrefVals.PREV_XML, "").equals("")){
+			reader.setLoadLocation(new File(p.get(PrefVals.PREV_XML, "")));
+			fileLocationField.setText(p.get(PrefVals.PREV_XML, ""));
+			loadAction();
+		}
 	}
 
 	/**
@@ -98,6 +107,9 @@ public class GUI {
 		JMenuBar menuBar = new JMenuBar();
 		frmSmsBackupReader.setJMenuBar(menuBar);
 
+		JMenu mnOptions = new JMenu("Options");
+		menuBar.add(mnOptions);
+		
 		JMenu mnHelp = new JMenu("Help");
 		menuBar.add(mnHelp);
 
@@ -118,6 +130,16 @@ public class GUI {
 			}
 		});
 		mnHelp.add(mntmAboutSmsBackup);
+		
+		JMenuItem mntmOptions = new JMenuItem("Options");
+		mntmOptions.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				OptionForm o = new OptionForm();
+				o.setVisible(true);
+			}
+		});
+		mnOptions.add(mntmOptions);
 
 		JLabel lblEnterYourCountry = new JLabel("Enter your country code (US is 1, UK is 44, ...):");
 		lblEnterYourCountry.setFont(new Font("Tahoma", Font.PLAIN, 11));
@@ -353,7 +375,9 @@ public class GUI {
 	}
 
 	private void chooseFileAction() {
-		JOptionPane.showMessageDialog(frmSmsBackupReader, "Not all messages may show up under the correct contact.\nThis is due to Android storing numbers in different formats, such as +44 07xxx xxxxxx instead of just 07xxx xxxxxx.\n");
+		if(!p.getBoolean(PrefVals.IGNORE_WARNING, false))
+			JOptionPane.showMessageDialog(frmSmsBackupReader, "Not all messages may show up under the correct contact.\nThis is due to Android storing numbers in different formats, such as +44 07xxx xxxxxx instead of just 07xxx xxxxxx.\n");
+		
 		String tempLocation;
 		fileChooser = new JFileChooser();
 		int returnValue = fileChooser.showOpenDialog(frmSmsBackupReader);
@@ -364,6 +388,8 @@ public class GUI {
 			fileLocationField.setText(tempLocation);
 
 			reader.setLoadLocation(openFile);
+			
+			p.put(PrefVals.PREV_XML, openFile.getAbsolutePath());
 		}
 	}
 
@@ -371,7 +397,7 @@ public class GUI {
 		BigInteger _timeOffset = BigInteger.valueOf(Integer.parseInt(offsetField.getText()) * 3600000);
 		String _countryCode = countryCodeTextBox.getText();
 
-		if (fileLocationField.getText().equals("...")) {
+		if (fileLocationField.getText().equals("...") && !p.getBoolean(PrefVals.LOAD_PREV_XML, false)) {
 			JOptionPane.showMessageDialog(frmSmsBackupReader, "Choose SMS backup file first!");
 		}
 		else {
