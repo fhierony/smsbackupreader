@@ -11,7 +11,7 @@ Check http://mattj.io/sms-backup-reader/ for the latest high-level updates.
 
 ## How to download
 
-You can download the latest release here: [Latest release](https://github.com/devadvance/smsbackupreader/releases/latest)
+You can download the latest release here: [Latest release](https://github.com/mrussojr/smsbackupreader/releases/latest)
 
 ## How to use SMS Backup Reader
 
